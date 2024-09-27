@@ -4,11 +4,13 @@ const { remote } = window.require("electron");
 
 class Store {
   constructor(opts = {}) {
+    this.syncData(opts);
+  }
+
+  syncData(opts = {}) {
     const userDataPath = remote.app.getPath("userData");
     opts.defaults = { username: null, repos: {}, issues: {}, pr: {} };
     this.path = path.join(userDataPath, "pref.json");
-    console.log(this.path);
-    console.log(this.path);
     this.data = parseDataFile(this.path, opts.defaults);
   }
 
@@ -22,6 +24,12 @@ class Store {
   }
 
   getSorted(key) {
+    this.syncData();
+    if (key !== "repos") {
+      return Object.values(this.data[key]).sort(
+        (a, b) => new Date(b.time) - new Date(a.time)
+      );
+    }
     return Object.values(this.data[key]).sort((a, b) => b.visited - a.visited);
   }
 
@@ -65,11 +73,8 @@ class Store {
   }
 
   markVisited(branch, key) {
-    console.log(arguments,"heou")
     if (this.data[branch][key]) {
       this.data[branch][key].visited += 1;
-      console.log(this.data[branch][key])
-
     }
     this.sync();
   }
@@ -79,25 +84,28 @@ class Store {
     this.sync();
   }
 
-  sync(localDump, name) {
-    if(localDump){
-      if(name=="repos"){
-        Object.keys(localDump["repos"]).forEach((key)=>{
-          this.repoSet(key, localDump["repos"][key])
-        })  
-      } else if (name=="pr"){
-        this.data[name] = {}
-        Object.keys(localDump["pr"]).forEach((key)=>{
-          this.prSet(key, localDump["pr"][key])
-        })
-      }else if (name == "issues"){
-        this.data[name] = {}
-        Object.keys(localDump["issues"]).forEach((key)=>{
-          this.issueSet(key, localDump["issues"][key])
+  sync(localDump, name, since) {
+    if (localDump) {
+      if (name == "repos") {
+        if (since === undefined) {
+          this.data[name] = {};
+        }
+        Object.keys(localDump).forEach((key) => {
+          this.repoSet(key, localDump[key]);
+        });
+      } else if (name == "pr") {
+        this.data[name] = {};
+        Object.keys(localDump).forEach((key) => {
+          this.prSet(key, localDump[key]);
+        });
+      } else if (name == "issues") {
+        this.data[name] = {};
+        Object.keys(localDump).forEach((key) => {
+          this.issueSet(key, localDump[key]);
         });
       }
     }
-   
+
     fs.writeFileSync(this.path, JSON.stringify(this.data));
     return true;
   }
@@ -105,7 +113,6 @@ class Store {
   get src() {
     return this.data;
   }
-
 }
 
 function parseDataFile(filePath, defaults) {
